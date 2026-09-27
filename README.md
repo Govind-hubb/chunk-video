@@ -128,13 +128,4 @@ Open 3 terminal tabs (or run concurrently):
 
 ---
 
-## 🎯 Interview Cheat-Sheet: Questions & Model Answers
 
-### Q1: Why use HLS streaming over standard MP4 files?
-> **Answer:** *"Standard MP4 downloads require transferring a single large file sequentially. If the user's connection drops from 100 Mbps to 2 Mbps, playback halts and buffers. HLS cuts the video into short 6-second segments at multiple bitrates (360p, 720p, 1080p). The client's player (`hls.js`) dynamically switches bitrates between segments without buffering."*
-
-### Q2: What happens if 50 users upload 2GB videos simultaneously?
-> **Answer:** *"Because we use S3 Pre-signed URLs, the 100GB of video traffic goes directly to AWS S3. Our Express server only signs lightweight JSON tokens, so its CPU and memory remain near zero. The transcode jobs enter a BullMQ queue, where workers process them according to configured concurrency limits, protecting system stability."*
-
-### Q3: What happens if the worker server crashes during transcoding?
-> **Answer:** *"BullMQ maintains job locks in Redis. If a worker process dies, the lock expires, and BullMQ automatically re-assigns the job to another healthy worker. Our cleanup handlers ensure intermediate temporary segment files are cleanly purged before re-attempting."*
