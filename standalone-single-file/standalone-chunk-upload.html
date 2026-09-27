@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chunk Video Upload & Streaming</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .chunk-box {
+      transition: all 0.2s ease;
+    }
+    .chunk-pending { background-color: #334155; }
+    .chunk-uploading { background-color: #3b82f6; transform: scale(1.1); }
+    .chunk-done { background-color: #10b981; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="max-w-5xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <header class="flex items-center justify-between pb-6 border-b border-slate-800">
+      <div>
+        <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+          Chunk Video Engine
+        </h1>
+        <p class="text-sm text-slate-400 mt-1">
+          High-performance binary chunked video upload & HTTP 206 Byte-Range streaming
+        </p>
+      </div>
+      <span class="px-3 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-full text-xs font-semibold">
+        Standalone Mode
+      </span>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-8">
+      <!-- Left Column: Upload Section -->
+      <section class="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl">
+        <h2 class="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
+          <span>??</span> Chunked Video Upload
+        </h2>
+
+        <div class="space-y-4">
+          <!-- File Input -->
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">Select Video File</label>
+            <input type="file" id="videoFileInput" accept="video/*" class="w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer bg-slate-800 rounded-lg p-2 border border-slate-700">
+          </div>
+
+          <!-- Chunk Size Selector -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">Chunk Size</label>
+              <select id="chunkSizeSelect" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200">
+                <option value="524288">512 KB (Fine-grained)</option>
+                <option value="1048576" selected>1 MB (Recommended)</option>
+                <option value="2097152">2 MB (Faster network)</option>
+                <option value="5242880">5 MB (High Speed)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">File Size</label>
+              <input type="text" id="fileSizeDisplay" readonly placeholder="0 MB" class="w-full bg-slate-800/50 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-400">
+            </div>
+          </div>
+
+          <!-- Upload Button -->
+          <button id="uploadBtn" disabled class="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-medium text-sm rounded-lg transition-colors">
+            Start Chunked Upload
+          </button>
+
+          <!-- Overall Progress -->
+          <div id="progressSection" class="hidden space-y-2 pt-2">
+            <div class="flex justify-between text-xs">
+              <span id="progressText" class="text-slate-400">Uploading chunks...</span>
+              <span id="percentText" class="font-bold text-blue-400">0%</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+              <div id="progressBar" class="bg-blue-500 h-2.5 rounded-full transition-all duration-150" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- Chunk Visualization Matrix -->
+          <div id="chunkMatrixContainer" class="hidden pt-2">
+            <label class="block text-xs font-medium text-slate-400 mb-2">Chunk Transfer Map (<span id="chunkCountLabel">0/0</span>)</label>
+            <div id="chunkMatrix" class="grid grid-cols-10 gap-1.5 max-h-36 overflow-y-auto p-2 bg-slate-950/60 rounded-lg border border-slate-800"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Player & Stream Section -->
+      <section class="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl flex flex-col justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
+            <span>??</span> HTTP 206 Range Stream Player
+          </h2>
+
+          <div class="relative aspect-video bg-black rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center">
+            <video id="videoPlayer" controls class="w-full h-full object-contain"></video>
+            <div id="playerPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 p-4 text-center">
+              <svg class="w-12 h-12 mb-2 stroke-current opacity-40" fill="none" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <p class="text-xs">Upload a video or select an uploaded file below to stream</p>
+            </div>
+          </div>
+
+          <p id="nowPlayingText" class="text-xs text-slate-400 mt-2 truncate">No active stream</p>
+        </div>
+
+        <!-- Uploaded Videos List -->
+        <div class="mt-6 border-t border-slate-800 pt-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-semibold uppercase text-slate-400">Available Videos</h3>
+            <button id="refreshVideosBtn" class="text-xs text-blue-400 hover:text-blue-300">Refresh List</button>
+          </div>
+          <div id="videoList" class="space-y-1.5 max-h-32 overflow-y-auto text-sm">
+            <div class="text-xs text-slate-500 italic py-2">Loading videos...</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('videoFileInput');
+    const chunkSizeSelect = document.getElementById('chunkSizeSelect');
+    const fileSizeDisplay = document.getElementById('fileSizeDisplay');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const progressSection = document.getElementById('progressSection');
+    const progressBar = document.getElementById('progressBar');
+    const percentText = document.getElementById('percentText');
+    const progressText = document.getElementById('progressText');
+    const chunkMatrixContainer = document.getElementById('chunkMatrixContainer');
+    const chunkMatrix = document.getElementById('chunkMatrix');
+    const chunkCountLabel = document.getElementById('chunkCountLabel');
+    const videoPlayer = document.getElementById('videoPlayer');
+    const playerPlaceholder = document.getElementById('playerPlaceholder');
+    const nowPlayingText = document.getElementById('nowPlayingText');
+    const videoList = document.getElementById('videoList');
+    const refreshVideosBtn = document.getElementById('refreshVideosBtn');
+
+    let selectedFile = null;
+
+    fileInput.addEventListener('change', (e) => {
+      selectedFile = e.target.files[0];
+      if (selectedFile) {
+        fileSizeDisplay.value = (selectedFile.size / (1024 * 1024)).toFixed(2) + ' MB';
+        uploadBtn.disabled = false;
+      } else {
+        fileSizeDisplay.value = '';
+        uploadBtn.disabled = true;
+      }
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+
+      const chunkSize = parseInt(chunkSizeSelect.value);
+      const totalChunks = Math.ceil(selectedFile.size / chunkSize);
+      const fileName = encodeURIComponent(selectedFile.name);
+
+      uploadBtn.disabled = true;
+      fileInput.disabled = true;
+      progressSection.classList.remove('hidden');
+      chunkMatrixContainer.classList.remove('hidden');
+      chunkMatrix.innerHTML = '';
+
+      // Initialize chunk indicators
+      for (let i = 0; i < totalChunks; i++) {
+        const box = document.createElement('div');
+        box.id = `chunk-box-${i}`;
+        box.className = 'chunk-box h-4 rounded-sm chunk-pending';
+        box.title = `Chunk #${i + 1}`;
+        chunkMatrix.appendChild(box);
+      }
+
+      let completedChunks = 0;
+
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * chunkSize;
+        const end = Math.min(start + chunkSize, selectedFile.size);
+        const chunkBlob = selectedFile.slice(start, end);
+
+        const currentBox = document.getElementById(`chunk-box-${i}`);
+        if (currentBox) {
+          currentBox.className = 'chunk-box h-4 rounded-sm chunk-uploading';
+        }
+
+        progressText.innerText = `Uploading chunk ${i + 1} of ${totalChunks}...`;
+
+        try {
+          const res = await fetch('/upload-chunk', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'x-chunk-index': i.toString(),
+              'x-total-chunks': totalChunks.toString(),
+              'x-file-name': fileName
+            },
+            body: chunkBlob
+          });
+
+          if (!res.ok) throw new Error('Chunk upload failed');
+
+          const data = await res.json();
+          completedChunks++;
+
+          if (currentBox) {
+            currentBox.className = 'chunk-box h-4 rounded-sm chunk-done';
+          }
+
+          const percent = Math.round((completedChunks / totalChunks) * 100);
+          progressBar.style.width = `${percent}%`;
+          percentText.innerText = `${percent}%`;
+          chunkCountLabel.innerText = `${completedChunks}/${totalChunks}`;
+
+          if (data.status === 'completed') {
+            progressText.innerText = 'Upload completed & merged!';
+            playVideo(data.streamUrl, selectedFile.name);
+            fetchVideos();
+          }
+        } catch (err) {
+          progressText.innerText = 'Upload error: ' + err.message;
+          alert('Upload failed: ' + err.message);
+          break;
+        }
+      }
+
+      uploadBtn.disabled = false;
+      fileInput.disabled = false;
+    });
+
+    function playVideo(streamUrl, fileName) {
+      playerPlaceholder.classList.add('hidden');
+      videoPlayer.src = streamUrl;
+      videoPlayer.play();
+      nowPlayingText.innerText = `Now Streaming (HTTP 206): ${fileName}`;
+    }
+
+    async function fetchVideos() {
+      try {
+        const res = await fetch('/videos');
+        const data = await res.json();
+        videoList.innerHTML = '';
+
+        if (!data.videos || data.videos.length === 0) {
+          videoList.innerHTML = '<div class="text-xs text-slate-500 italic py-1">No videos uploaded yet</div>';
+          return;
+        }
+
+        data.videos.forEach(v => {
+          const item = document.createElement('div');
+          item.className = 'flex items-center justify-between p-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 cursor-pointer border border-slate-800/80 transition-colors';
+          item.innerHTML = `
+            <span class="text-xs font-medium text-slate-300 truncate max-w-[200px]" title="${v.fileName}">${v.fileName}</span>
+            <span class="text-xs text-slate-500">${v.sizeMB} MB</span>
+          `;
+          item.onclick = () => playVideo(v.streamUrl, v.fileName);
+          videoList.appendChild(item);
+        });
+      } catch (e) {
+        videoList.innerHTML = '<div class="text-xs text-rose-400">Failed to load video list</div>';
+      }
+    }
+
+    refreshVideosBtn.addEventListener('click', fetchVideos);
+    fetchVideos();
+  </script>
+</body>
+</html>
